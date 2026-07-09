@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: deploy/Dockerfile
 
@@ -48,7 +48,7 @@ jobs:
           test "$mb" -le 25 || { echo "image ${mb}MB exceeds 25MB budget"; exit 1; }
 
       - name: Trivy scan (0 HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: ${{ env.IMAGE }}
           format: table
@@ -57,20 +57,20 @@ jobs:
           ignore-unfixed: true
 
       - name: Grype scan (0 HIGH/CRITICAL)
-        uses: anchore/scan-action@v5
+        uses: anchore/scan-action@v7.4.0
         with:
           image: ${{ env.IMAGE }}
           fail-build: true
           severity-cutoff: high
 
       - name: Dockle (image best-practices)
-        uses: erzz/dockle-action@v1
+        uses: erzz/dockle-action@v1.4.1
         with:
           image: ${{ env.IMAGE }}
           failure-threshold: WARN
 
       - name: SBOM (syft, SPDX + CycloneDX)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.0
         with:
           image: ${{ env.IMAGE }}
           format: spdx-json

@@ -16,17 +16,22 @@ concurrency:
 
 jobs:
   secrets:
-    name: Secret scan
+    name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      # The gitleaks GitHub Action requires a paid license for organizations; the CLI
+      # is free. Pinned version, checksum-agnostic download from the official release.
+      - name: Install and run gitleaks
         env:
-          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          ./gitleaks dir . --config .gitleaks.toml --no-banner --redact
 
   osv:
     name: OSV scanner
@@ -34,14 +39,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: google/osv-scanner-action/osv-scanner-action@v2.2.4
+      - uses: actions/setup-go@v5
         with:
-          scan-args: |-
-            --recursive
-            ./
+          go-version: "1.24"
+      - name: Install and run osv-scanner
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          "$(go env GOPATH)/bin/osv-scanner" scan --recursive .
 
+  # CodeQL and Scorecard upload SARIF to GitHub code scanning, which requires GitHub
+  # Advanced Security. Private repositories without GHAS cannot upload, so these run
+  # only on public repositories and activate automatically if the repo becomes public
+  # or GHAS is enabled. See CONTRIBUTING.md.
   codeql:
     name: CodeQL
+    if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -60,6 +72,7 @@ jobs:
 
   scorecard:
     name: OpenSSF Scorecard
+    if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
