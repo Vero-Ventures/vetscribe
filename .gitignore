@@ -1,0 +1,28 @@
+# Go build output
+/vetscribe
+/dist-bin/
+*.test
+*.out
+coverage.*
+
+# Frontend
+web/node_modules/
+web/coverage/
+web/playwright-report/
+web/test-results/
+
+# Built frontend assets are generated into the Go embed dir by the FE build.
+# Only .gitkeep is tracked so `go build` (embed) works on a fresh checkout.
+internal/api/dist/*
+!internal/api/dist/.gitkeep
+
+# Local model + working data must never enter source control.
+models/
+visits/
+*.gguf
+*.bin
+
+# Local tooling
+.env
+*.log
+*.tmp

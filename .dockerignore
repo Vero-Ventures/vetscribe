@@ -1,0 +1,13 @@
+.git
+.github
+web/node_modules
+web/coverage
+web/playwright-report
+web/test-results
+internal/api/dist/assets
+internal/api/dist/index.html
+docs
+testdata
+*.md
+!go.mod
+!go.sum

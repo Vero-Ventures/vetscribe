@@ -1,0 +1,7 @@
+# Single-package workspace + pnpm settings (pnpm 11 reads config from here).
+# verifyDepsBeforeRun disabled: the pre-run install check misbehaves under the
+# sandboxed corepack environment; CI runs an explicit `pnpm install --frozen-lockfile`.
+verifyDepsBeforeRun: false
+# esbuild is the only dependency with a build script; explicitly permitted.
+allowBuilds:
+  esbuild: true

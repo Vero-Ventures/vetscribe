@@ -1,0 +1,13 @@
+title = "VetScribe gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore generated and vendored paths"
+paths = [
+  '''web/pnpm-lock\.yaml''',
+  '''web/node_modules/.*''',
+  '''web/coverage/.*''',
+  '''internal/api/dist/.*''',
+]

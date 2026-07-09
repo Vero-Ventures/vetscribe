@@ -1,0 +1,25 @@
+# Fast local gates. CI is authoritative; these catch issues before push.
+pre-commit:
+  parallel: true
+  commands:
+    gofumpt:
+      glob: "*.go"
+      run: gofumpt -l {staged_files} && test -z "$(gofumpt -l {staged_files})"
+    go-vet:
+      glob: "*.go"
+      run: go vet ./...
+    gitleaks:
+      run: gitleaks git --staged --no-banner
+    prettier:
+      root: web/
+      glob: "*.{ts,tsx,js,json,css,html}"
+      run: pnpm exec prettier --check {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    go-test:
+      run: go test -race ./...
+    frontend-check:
+      root: web/
+      run: pnpm typecheck && pnpm lint && pnpm test

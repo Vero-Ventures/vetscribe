@@ -1,0 +1,84 @@
+name: Container
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: vetscribe:ci
+
+jobs:
+  build-scan:
+    name: Build, scan, SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: deploy/Dockerfile
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          tags: ${{ env.IMAGE }}
+          load: true
+          provenance: true
+          sbom: true
+
+      - name: Image size gate (<= 25MB api profile)
+        run: |
+          bytes=$(docker image inspect ${{ env.IMAGE }} --format '{{.Size}}')
+          mb=$((bytes / 1000000))
+          echo "image size: ${mb} MB"
+          test "$mb" -le 25 || { echo "image ${mb}MB exceeds 25MB budget"; exit 1; }
+
+      - name: Trivy scan (0 HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Grype scan (0 HIGH/CRITICAL)
+        uses: anchore/scan-action@v5
+        with:
+          image: ${{ env.IMAGE }}
+          fail-build: true
+          severity-cutoff: high
+
+      - name: Dockle (image best-practices)
+        uses: erzz/dockle-action@v1
+        with:
+          image: ${{ env.IMAGE }}
+          failure-threshold: WARN
+
+      - name: SBOM (syft, SPDX + CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}
+          format: spdx-json
+          artifact-name: vetscribe-sbom.spdx.json
+
+      - name: Verify runtime posture (non-root, no shell)
+        run: |
+          uid=$(docker image inspect ${{ env.IMAGE }} --format '{{.Config.User}}')
+          echo "configured user: ${uid}"
+          test "$uid" != "" && test "$uid" != "root" && test "$uid" != "0" || { echo "image must run as non-root"; exit 1; }
+          docker run --rm --entrypoint /bin/sh ${{ env.IMAGE }} -c "true" && { echo "shell present — expected distroless (no shell)"; exit 1; } || echo "no shell present (good)"
