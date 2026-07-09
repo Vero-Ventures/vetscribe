@@ -10,7 +10,7 @@ minimal distroless container.
 
 ## What was built
 
-- **Backend:** Go 1.24 (toolchain pinned `go1.24.8` for a patched stdlib), `cmd/vetscribe`
+- **Backend:** Go 1.26 (toolchain pinned `go1.26.5` for a patched stdlib), `cmd/vetscribe`
   with graceful shutdown, `internal/config`, `internal/api` (`/healthz` + embedded frontend
   with a fresh-checkout placeholder fallback).
 - **Frontend:** Preact + TypeScript + Vite, built into the Go embed directory so one binary

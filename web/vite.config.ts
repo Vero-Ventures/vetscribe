@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [preact()],
   build: {
     outDir: "../internal/api/dist",
-    emptyOutDir: true,
+    // Do not wipe the embed dir: it holds the committed .gitkeep that keeps
+    // `//go:embed all:dist` valid on a fresh checkout. Stale hashed assets are
+    // gitignored and irrelevant (index.html always points at the current hash).
+    emptyOutDir: false,
   },
   server: {
     proxy: {

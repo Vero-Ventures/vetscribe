@@ -19,7 +19,7 @@ distroless image. Feature milestones (transcription, SOAP, capture UI) follow.
 
 ## Requirements to build
 
-- Go 1.24+
+- Go 1.26+
 - Node 22+ with pnpm (via corepack)
 - Docker (for the container build)
 

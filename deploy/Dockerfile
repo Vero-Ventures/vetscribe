@@ -2,17 +2,17 @@
 
 # ---- Stage 1: build the frontend into the Go embed directory ----
 FROM node:22-alpine AS frontend
-WORKDIR /src
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./web/
+WORKDIR /src/web
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    cd web && pnpm install --frozen-lockfile
-COPY web ./web
-COPY internal/api/dist/.gitkeep ./internal/api/dist/.gitkeep
-RUN cd web && pnpm build
+    pnpm install --frozen-lockfile
+COPY web ./
+# vite creates ../internal/api/dist (relative to /src/web) with the built assets.
+RUN pnpm build
 
 # ---- Stage 2: build the static Go binary with the embedded frontend ----
-FROM golang:1.24-alpine AS backend
+FROM golang:1.26-alpine AS backend
 WORKDIR /src
 # go.sum is absent while the backend is stdlib-only; the glob keeps the COPY valid.
 COPY go.mod go.su[m] ./
