@@ -5,3 +5,8 @@ verifyDepsBeforeRun: false
 # esbuild is the only dependency with a build script; explicitly permitted.
 allowBuilds:
   esbuild: true
+# Force transitive vite up to a patched release (vitest's vite-node pulled a
+# vulnerable 7.1.x). Keeps the whole tree on the fixed line.
+overrides:
+  vite: "^7.3.5"
+  esbuild: "^0.28.1"

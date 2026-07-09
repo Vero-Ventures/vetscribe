@@ -48,7 +48,7 @@ jobs:
           test "$mb" -le 25 || { echo "image ${mb}MB exceeds 25MB budget"; exit 1; }
 
       - name: Trivy scan (0 HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE }}
           format: table
