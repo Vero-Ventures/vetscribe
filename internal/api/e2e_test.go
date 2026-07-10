@@ -57,6 +57,9 @@ func TestE2EBackendHealth(t *testing.T) {
 			chromedp.Flag("headless", true),
 			chromedp.Flag("no-sandbox", true),
 			chromedp.Flag("disable-gpu", true),
+			// CI runners have a small /dev/shm; without this Chrome crashes on
+			// startup and never connects (page never loads).
+			chromedp.Flag("disable-dev-shm-usage", true),
 		)...,
 	)
 	defer cancelAlloc()
