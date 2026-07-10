@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -135,20 +136,41 @@ func TestPanicRecovery(t *testing.T) {
 }
 
 func TestBodyLimitApplied(t *testing.T) {
-	// A handler that reads the body should see MaxBytesReader enforced.
+	// A handler that drains the body observes MaxBytesReader's enforcement.
 	var readErr error
-	reader := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf := make([]byte, maxRequestBody+1)
-		_, readErr = r.Body.Read(buf)
+	drain := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(http.StatusOK)
 	})
-	h := bodyLimitMiddleware(reader)
+	h := bodyLimitMiddleware(drain)
 
+	// Small body: must read cleanly, no limit tripped.
+	readErr = nil
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(strings.Repeat("a", 8)))
 	h.ServeHTTP(rec, req)
-	// Small body reads fine; the wrapper simply must not break normal reads.
-	if readErr != nil && readErr.Error() == "http: request body too large" {
-		t.Fatalf("small body should not trip the limit")
+	if readErr != nil {
+		t.Fatalf("small body should read without error, got %v", readErr)
 	}
+
+	// Over-limit body: streamed via io.LimitReader so we do not allocate 32 MiB;
+	// the read must fail with the too-large error.
+	readErr = nil
+	rec = httptest.NewRecorder()
+	oversized := io.LimitReader(repeatReader('a'), maxRequestBody+1)
+	req = httptest.NewRequest(http.MethodPost, "/", oversized)
+	h.ServeHTTP(rec, req)
+	if readErr == nil || readErr.Error() != "http: request body too large" {
+		t.Fatalf("over-limit body should be rejected, got %v", readErr)
+	}
+}
+
+// repeatReader yields an unbounded stream of a single byte without allocating.
+type repeatReader byte
+
+func (b repeatReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(b)
+	}
+	return len(p), nil
 }
