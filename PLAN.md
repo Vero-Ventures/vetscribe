@@ -91,15 +91,22 @@ Design consequences that buy reliability:
 
 ## 4. Stack decisions and rationale
 
+**Single language, single toolchain: Go.** The repository has no Node/TypeScript/bundler
+toolchain. The browser needs the MediaRecorder JS API (unavoidable in a browser), so the
+frontend is a Go `html/template` page plus one hand-written vanilla `app.js` + `app.css` — real
+committed source files with **no build step**, embedded in the binary via `embed.FS`. This is
+the simplest stack that meets the reliability goal and keeps the repo one language end to end.
+
 | Concern | Choice | Why |
 |---|---|---|
-| Backend language | **Go 1.24+** | Single static binary (`CGO_ENABLED=0`), trivial cross-compile to amd64/arm64, no runtime, stdlib HTTP, `embed.FS` for single-artifact deploy. Best "runs anywhere" story. |
+| Language / toolchain | **Go 1.26** (only) | Single static binary (`CGO_ENABLED=0`), trivial cross-compile to amd64/arm64, no runtime, stdlib HTTP, `embed.FS` for single-artifact deploy. One language, one toolchain. |
 | Inference | **whisper.cpp + llama.cpp**, static musl builds, version+SHA256 pinned | CPU-only, no GPU required, no shared-lib deps. Reused from prior project's proven manifest approach. |
 | Models | Mounted volume, downloaded on first run, SHA256-verified | Keeps image tiny (R3); lets deployer pick model size for their hardware. |
-| Frontend | **TypeScript + Vite + Preact** (≈4 KB runtime), MediaRecorder | Minimal, well-tested, typed, testable. Vanilla-TS fallback if we want zero framework. |
-| Frontend delivery | Built to static assets, **embedded in the Go binary** | Single artifact; no separate web server; same-origin (no CORS surface). |
-| Container base | **`gcr.io/distroless/static-debian12`** (has CA certs + tzdata) default; `scratch` for pure-offline profile | Smallest images with a shell-less, non-root, CVE-minimal surface. distroless-static ≈ 2 MB. |
-| Package manager (FE) | **pnpm** | Strict, fast, content-addressed, good lockfile hygiene. |
+| Frontend | **Go `html/template` + hand-written vanilla `app.js`/`app.css`**, MediaRecorder | No Node/bundler/transpile; server-rendered page, no-build JS. Single language. |
+| Frontend delivery | Templates + assets **embedded in the Go binary** (`embed.FS`) | Single artifact; no separate web server; same-origin (no CORS surface). |
+| Browser e2e | **`chromedp`** (Go) drives headless Chrome | Real-browser test stays in Go — no Playwright/Node. |
+| DOCX export | **`github.com/gomutex/godocx`** (MIT, pure Go) | Create-from-scratch docx in Go; permissive license; keeps the single-language rule. |
+| Container base | **`gcr.io/distroless/static-debian12`** (CA certs + tzdata) default; `scratch` for pure-offline profile | Shell-less, non-root, CVE-minimal. |
 | Pre-commit hooks | **lefthook** | Single cross-platform binary, fast, language-agnostic. |
 
 Two build profiles from one codebase:
@@ -131,10 +138,10 @@ vetscribe/
 │   ├── merge/                   # channel transcript merge (ported spec)
 │   ├── store/                   # visit artifact store + provenance
 │   └── models/                  # pinned model/binary manifest + SHA256 verify
-├── web/                         # TypeScript + Vite + Preact frontend
-│   ├── src/ …
-│   ├── tests/                   # vitest unit
-│   └── e2e/                     # playwright specs
+│   └── api/
+│       ├── templates/           # Go html/template (index.html.tmpl)
+│       ├── assets/              # hand-written app.js + app.css (no build step)
+│       └── e2e_test.go          # chromedp browser e2e (build tag: e2e)
 ├── schemas/                     # soap-draft.schema.json, transcript.schema.json
 ├── testdata/golden/             # golden audio WAV + expected transcript/SOAP
 ├── deploy/
@@ -160,15 +167,12 @@ the source of truth; local hooks are an accelerator, not a substitute.
 - **Vuln:** `govulncheck` (Go vuln DB).
 - **Module hygiene:** `go mod verify`, `go mod tidy` diff check.
 
-### TypeScript frontend
-- **Format:** `prettier --check`.
-- **Lint/smells:** `eslint` + `@typescript-eslint` (typed lint rules).
-- **Types:** `tsc --noEmit`.
-- **Unit:** `vitest run --coverage`; **coverage floor 80%**.
-- **E2E:** `playwright test` in headless Chromium **and** Firefox, using a fed fake audio
-  stream (`--use-file-for-fake-audio-capture`) so the record→transcribe→SOAP path is
-  exercised deterministically in a real browser.
-- **Deps:** `pnpm audit --audit-level=high`; committed `pnpm-lock.yaml`.
+### Frontend (no separate toolchain)
+- The UI is a Go `html/template` page plus hand-written vanilla `app.js`/`app.css` embedded via
+  `embed.FS` — no Node, bundler, transpile, or separate lint/format/unit gate.
+- **Browser E2E:** a Go `chromedp` test (build tag `e2e`) drives headless Chrome against the
+  running binary; in later milestones it feeds a fake audio stream to exercise the
+  record→transcribe→SOAP path deterministically in a real browser.
 
 ### Container / image
 - **Dockerfile lint:** `hadolint`.

@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -39,7 +41,136 @@ func TestFrontendServed(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for index, got %d", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct == "" {
-		t.Fatalf("expected a content-type for served index")
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("expected text/html content-type, got %q", ct)
 	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "VetScribe") {
+		t.Fatalf("expected body to contain VetScribe, got %q", body)
+	}
+	if !strings.Contains(body, "vtest") {
+		t.Fatalf("expected injected version vtest in body, got %q", body)
+	}
+}
+
+func TestStaticAssetServed(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
+	newTestServer().Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for app.js, got %d", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "javascript") {
+		t.Fatalf("expected a javascript content-type, got %q", ct)
+	}
+	if !strings.Contains(rec.Body.String(), "refreshHealth") {
+		t.Fatalf("expected app.js body to contain the refreshHealth function")
+	}
+}
+
+func TestSPAFallbackRendersIndex(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/visits/deep/link", nil)
+	newTestServer().Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 SPA fallback, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "VetScribe") {
+		t.Fatalf("expected fallback to render the index page")
+	}
+}
+
+func TestUnknownAPIPathIs404(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/does-not-exist", nil)
+	newTestServer().Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown /api path, got %d", rec.Code)
+	}
+}
+
+func TestSecurityHeadersAndRequestID(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	newTestServer().Handler().ServeHTTP(rec, req)
+
+	h := rec.Header()
+	if got := h.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q", got)
+	}
+	if got := h.Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+	if got := h.Get("Referrer-Policy"); got != "no-referrer" {
+		t.Fatalf("Referrer-Policy = %q", got)
+	}
+	if !strings.Contains(h.Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+		t.Fatalf("CSP missing frame-ancestors: %q", h.Get("Content-Security-Policy"))
+	}
+	if h.Get("X-Request-Id") == "" {
+		t.Fatalf("expected an X-Request-Id header")
+	}
+}
+
+func TestPanicRecovery(t *testing.T) {
+	s := newTestServer()
+	panicking := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	})
+	h := s.recoverMiddleware(panicking)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 after panic, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "boom") {
+		t.Fatalf("panic detail leaked to client: %q", rec.Body.String())
+	}
+}
+
+func TestBodyLimitApplied(t *testing.T) {
+	// A handler that drains the body observes MaxBytesReader's enforcement.
+	var readErr error
+	drain := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusOK)
+	})
+	h := bodyLimitMiddleware(drain)
+
+	// Small body: must read cleanly, no limit tripped.
+	readErr = nil
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(strings.Repeat("a", 8)))
+	h.ServeHTTP(rec, req)
+	if readErr != nil {
+		t.Fatalf("small body should read without error, got %v", readErr)
+	}
+
+	// Over-limit body: streamed via io.LimitReader so we do not allocate 32 MiB;
+	// the read must fail with the too-large error.
+	readErr = nil
+	rec = httptest.NewRecorder()
+	oversized := io.LimitReader(repeatReader('a'), maxRequestBody+1)
+	req = httptest.NewRequest(http.MethodPost, "/", oversized)
+	h.ServeHTTP(rec, req)
+	if readErr == nil || readErr.Error() != "http: request body too large" {
+		t.Fatalf("over-limit body should be rejected, got %v", readErr)
+	}
+}
+
+// repeatReader yields an unbounded stream of a single byte without allocating.
+type repeatReader byte
+
+func (b repeatReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(b)
+	}
+	return len(p), nil
 }

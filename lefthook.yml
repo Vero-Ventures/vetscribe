@@ -10,16 +10,9 @@ pre-commit:
       run: go vet ./...
     gitleaks:
       run: gitleaks git --staged --no-banner
-    prettier:
-      root: web/
-      glob: "*.{ts,tsx,js,json,css,html}"
-      run: pnpm exec prettier --check {staged_files}
 
 pre-push:
   parallel: false
   commands:
     go-test:
       run: go test -race ./...
-    frontend-check:
-      root: web/
-      run: pnpm typecheck && pnpm lint && pnpm test

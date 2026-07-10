@@ -13,23 +13,25 @@ and gates.
 
 ## Status
 
-Milestone 0 (foundation): a single static binary serves the API and an embedded Preact UI;
+Milestone 0 (foundation): a single static binary serves the API and a server-rendered UI;
 the full CI/DevSecOps toolchain is wired; the container builds to a shell-less, non-root
 distroless image. Feature milestones (transcription, SOAP, capture UI) follow.
+
+The repository is a single language and toolchain: **Go**. The frontend is a Go
+`html/template` page plus two hand-written vanilla assets (`internal/api/assets/app.js`
+and `app.css`) embedded via `embed.FS` — there is no Node/npm/bundler and no build step.
+The only browser dependency is the native MediaRecorder JS API in that single asset.
 
 ## Requirements to build
 
 - Go 1.26+
-- Node 22+ with pnpm (via corepack)
 - Docker (for the container build)
+- Chrome/Chromium (only for the `-tags e2e` browser test)
 
 ## Build and run
 
 ```bash
-# 1. Build the frontend into the Go embed directory
-cd web && pnpm install --frozen-lockfile && pnpm build && cd ..
-
-# 2. Build and run the single binary
+# Build and run the single binary (template + assets are embedded from source).
 CGO_ENABLED=0 go build -o vetscribe ./cmd/vetscribe
 ./vetscribe                       # serves on :8080
 ```
@@ -53,12 +55,9 @@ golangci-lint run ./...
 go test -race -shuffle=on ./...
 govulncheck ./...
 
-# Frontend (in web/)
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test               # unit + coverage floor
-pnpm e2e                # browser end-to-end (needs a running server)
+# Browser end-to-end (chromedp; needs Chrome + a running server)
+./vetscribe &
+VETSCRIBE_BASE_URL=http://localhost:8080 go test -tags e2e ./internal/api/ -run TestE2E
 ```
 
 `scripts/check.sh` runs the fast local set in one command. Pre-commit and pre-push hooks are
@@ -66,7 +65,8 @@ wired via `lefthook` (`lefthook install`).
 
 ## Acceptance checks
 
-A change is acceptable when: all CI jobs are green; coverage floors hold (Go and frontend
-≥ 80%); the container image builds, passes Trivy + Grype + Dockle with no HIGH/CRITICAL, runs
-as non-root with no shell, and stays within its size budget; the browser end-to-end test
-passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full gate list and merge governance.
+A change is acceptable when: all CI jobs are green; the Go coverage floor holds
+(`internal/...` ≥ 80%); the container image builds, passes Trivy + Grype + Dockle with no
+HIGH/CRITICAL, runs as non-root with no shell, and stays within its size budget; the browser
+end-to-end test passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full gate list and merge
+governance.

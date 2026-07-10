@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VetScribe</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script defer src="/assets/app.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>VetScribe</h1>
+      <p data-testid="tagline">Veterinary visit transcription and SOAP drafting.</p>
+      <p data-testid="health-status" data-version="{{ .Build.Version }}">
+        Backend: checking… (v{{ .Build.Version }})
+      </p>
+      <noscript>
+        <p>JavaScript is required for live backend status and audio capture.</p>
+      </noscript>
+    </main>
+  </body>
+</html>
