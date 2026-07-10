@@ -5,6 +5,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -99,11 +100,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "index.html.tmpl", indexData{Build: s.build}); err != nil {
+	// Render into a buffer first: if ExecuteTemplate fails after it has begun
+	// writing to w, the 200 status is already committed and http.Error cannot
+	// downgrade it, serving a partial page as 200 OK.
+	var buf bytes.Buffer
+	if err := s.tmpl.ExecuteTemplate(&buf, "index.html.tmpl", indexData{Build: s.build}); err != nil {
 		s.logger.Error("render index", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
 }
 
 // --- middleware ----------------------------------------------------------------

@@ -56,6 +56,9 @@ async function startCapture() {
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     throw new Error("MediaRecorder API unavailable in this browser");
   }
+  if (recorder) {
+    throw new Error("recording already in progress");
+  }
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   chunks = [];
   recorder = new MediaRecorder(stream);
@@ -78,18 +81,20 @@ function stopCapture() {
       reject(new Error("no active recording"));
       return;
     }
-    recorder.addEventListener(
+    // Claim the active recorder and clear the shared reference immediately so a
+    // concurrent stop/start cannot double-stop or race on a null recorder.
+    const activeRecorder = recorder;
+    recorder = null;
+    activeRecorder.addEventListener(
       "stop",
       () => {
-        const type = recorder && recorder.mimeType ? recorder.mimeType : "audio/webm";
-        const blob = new Blob(chunks, { type });
-        recorder = null;
-        resolve(blob);
+        const type = activeRecorder.mimeType || "audio/webm";
+        resolve(new Blob(chunks, { type }));
       },
       { once: true },
     );
-    recorder.stop();
-    for (const track of recorder.stream.getTracks()) {
+    activeRecorder.stop();
+    for (const track of activeRecorder.stream.getTracks()) {
       track.stop();
     }
   });
