@@ -52,31 +52,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-  frontend:
-    name: TypeScript frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - name: Format check
-        run: pnpm format:check
-      - name: Lint
-        run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Unit tests + coverage
-        run: pnpm test
-      - name: Build
-        run: pnpm build
-
   e2e:
     name: End-to-end (browser)
     runs-on: ubuntu-latest
@@ -86,18 +61,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - uses: actions/setup-node@v4
+          cache: true
+      - name: Install Chrome (for chromedp)
+        uses: browser-actions/setup-chrome@v1
         with:
-          node-version: "22"
-      - run: corepack enable
-      - name: Build frontend
-        run: cd web && pnpm install --frozen-lockfile && pnpm build
+          install-dependencies: true
       - name: Build binary
         run: CGO_ENABLED=0 go build -o vetscribe ./cmd/vetscribe
-      - name: Install Playwright browsers
-        run: cd web && pnpm exec playwright install --with-deps chromium firefox
-      - name: Run server + e2e
+      - name: Run server + chromedp e2e
         run: |
           ./vetscribe &
           for i in $(seq 1 30); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
-          cd web && VETSCRIBE_BASE_URL=http://localhost:8080 pnpm e2e
+          VETSCRIBE_BASE_URL=http://localhost:8080 go test -tags e2e ./internal/api/ -run TestE2E -v

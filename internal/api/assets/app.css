@@ -1,0 +1,60 @@
+/* VetScribe app shell styles — hand-written vanilla CSS, committed, no build step. */
+
+:root {
+  color-scheme: light dark;
+  --fg: #1a1a1a;
+  --bg: #ffffff;
+  --muted: #5a6470;
+  --accent: #1f6feb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6e6e6;
+    --bg: #14171c;
+    --muted: #9aa4b0;
+    --accent: #58a6ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+}
+
+[data-testid="tagline"] {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+[data-testid="health-status"] {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-testid="health-error"] {
+  color: #d1242f;
+}

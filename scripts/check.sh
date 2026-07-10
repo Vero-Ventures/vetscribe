@@ -19,18 +19,11 @@ go test -race -shuffle=on ./...
 echo "== Go: govulncheck =="
 govulncheck ./...
 
-echo "== Frontend =="
-(
-  cd web
-  pnpm install --frozen-lockfile
-  pnpm format:check
-  pnpm lint
-  pnpm typecheck
-  pnpm test
-  pnpm build
-)
-
 echo "== Go: build with embedded frontend =="
 CGO_ENABLED=0 go build -o /dev/null ./cmd/vetscribe
 
 echo "All local checks passed."
+echo
+echo "Note: the browser end-to-end test needs Chrome + a running server and is not"
+echo "part of this fast gate. Run it manually with:"
+echo "  ./vetscribe & VETSCRIBE_BASE_URL=http://localhost:8080 go test -tags e2e ./internal/api/ -run TestE2E"

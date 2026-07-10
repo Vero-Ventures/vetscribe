@@ -19,10 +19,12 @@ Backend (Go):
 - `govulncheck` clean.
 - Cross-compiles for `linux/amd64` and `linux/arm64`.
 
-Frontend (TypeScript):
-- `prettier --check`, `eslint` (typed rules), `tsc --noEmit`.
-- `vitest` coverage ≥ 80%.
-- Playwright end-to-end passes in Chromium and Firefox.
+Frontend:
+- The UI is a Go `html/template` page plus hand-written vanilla `internal/api/assets/app.js`
+  and `app.css`, embedded via `embed.FS`. There is no Node toolchain, bundler, or build step,
+  so no separate frontend lint/format/typecheck/unit gate.
+- End-to-end: a Go `chromedp` test (`go test -tags e2e ./internal/api/ -run TestE2E`) drives
+  headless Chrome against the running binary and asserts backend health in a real browser.
 
 Container:
 - `hadolint` clean; Trivy **and** Grype report 0 HIGH/CRITICAL; Dockle passes.
@@ -31,8 +33,8 @@ Container:
 - SBOM generated (SPDX + CycloneDX); release images are signed and attested.
 
 Supply chain:
-- `gitleaks`, `osv-scanner`, CodeQL (Go + JS/TS), OpenSSF Scorecard.
-- All external binaries and models pinned by URL + SHA256; lockfiles committed.
+- `gitleaks`, `osv-scanner`, CodeQL (Go), OpenSSF Scorecard.
+- All external binaries and models pinned by URL + SHA256; `go.sum` committed.
 
 ## Privacy / medical-safety checklist (PRs touching audio, transcript, or SOAP)
 

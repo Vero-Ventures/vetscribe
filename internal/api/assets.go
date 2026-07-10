@@ -2,11 +2,16 @@ package api
 
 import "embed"
 
-// frontendAssets embeds the built frontend. The build pipeline compiles the Preact
-// app into web/dist before `go build`; a committed placeholder keeps `go build`
-// working before the frontend is built.
+// templateFS embeds the server-rendered HTML templates. The page is rendered by
+// Go's html/template at request time, so build metadata is injected server-side and
+// the page works before any JavaScript runs.
 //
-//go:embed all:dist
-var frontendAssets embed.FS
+//go:embed templates/*.tmpl
+var templateFS embed.FS
 
-const frontendRoot = "dist"
+// staticAssets embeds the hand-written, no-build frontend assets (vanilla JS + CSS).
+// They are real committed source files, so the embed is always valid — there is no
+// generated build output and no placeholder needed.
+//
+//go:embed assets/app.js assets/app.css
+var staticAssets embed.FS
